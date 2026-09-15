@@ -1,0 +1,8 @@
+{
+  "project_name": "CodeAlpha Student Grade Tracker",
+  "language": "Java",
+  "architecture": "MVC (Model-View-Controller)",
+  "gui_framework": "Java Swing with custom high-end theme",
+  "build_system": "Maven / Standard Java Project",
+  "created_at": "2026-09-07"
+}

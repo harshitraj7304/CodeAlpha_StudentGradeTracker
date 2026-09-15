@@ -1,0 +1,31 @@
+# Maven build output
+target/
+
+# Compiled Java bytecode
+bin/
+*.class
+
+# Runtime application data
+student_grades.dat
+
+# Generated CSV reports
+*.csv
+
+# IDE/local configuration
+.vscode/
+
+# IntelliJ
+.idea/
+*.iml
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Java crash logs
+hs_err_pid*
