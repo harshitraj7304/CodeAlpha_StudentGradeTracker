@@ -162,12 +162,32 @@ public class DataManager {
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
             List<Student> loaded = (List<Student>) ois.readObject();
             students.clear();
-            students.addAll(loaded);
+            if (loaded != null) {
+                students.addAll(loaded);
+            }
             return true;
         } catch (Exception e) {
-            System.err.println("Error loading data file, falling back to sample dataset: " + e.getMessage());
-            loadSampleData();
+            System.err.println("Error loading data file: " + e.getMessage());
+            createBackupCopy(file);
+            students.clear();
             return false;
+        }
+    }
+
+    private void createBackupCopy(File sourceFile) {
+        if (sourceFile != null && sourceFile.exists()) {
+            File backupFile = new File(sourceFile.getAbsolutePath() + ".bak");
+            try (FileInputStream in = new FileInputStream(sourceFile);
+                 FileOutputStream out = new FileOutputStream(backupFile)) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, bytesRead);
+                }
+                System.out.println("Backed up original data file to: " + backupFile.getName());
+            } catch (Exception ex) {
+                System.err.println("Failed to create backup copy: " + ex.getMessage());
+            }
         }
     }
 }

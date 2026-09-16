@@ -197,6 +197,14 @@ public class EndToEndWorkflowAuditTest {
         assertCondition(Math.abs(sgpa1 - 10.0) < 0.01, "Sem 1 SGPA should be 10.0, got: " + sgpa1);
         assertCondition(Math.abs(sgpa2 - 8.0) < 0.01, "Sem 2 SGPA should be 8.0, got: " + sgpa2);
         assertCondition(Math.abs(cgpa - 9.0) < 0.01, "Cumulative CGPA should be 9.0, got: " + cgpa);
+
+        // Sem 3: 4 credits of 0.0 SGPA (failed subject with entered grade)
+        Course c3 = new Course("CS301", "Physics", 4);
+        c3.addGradeItem(new GradeItem("Final", 20, 100, AssessmentCategory.FINAL_EXAM, 1.0)); // 20% -> F (0.0 GP)
+        s.getSemester(3).addSubject(c3);
+
+        double cgpaWithZeroSgpa = s.getCgpa();
+        assertCondition(Math.abs(cgpaWithZeroSgpa - 6.0) < 0.01, "CGPA with Zero-SGPA semester should be 6.0, got: " + cgpaWithZeroSgpa);
     }
 
     // --- 8. Backlog Lifecycle & Remediation ---

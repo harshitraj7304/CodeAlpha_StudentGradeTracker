@@ -167,9 +167,12 @@ public class Student implements Serializable {
         int totalCredits = 0;
 
         for (Semester s : semesters.values()) {
-            if (!s.getSubjects().isEmpty() && s.getSgpa() > 0) {
-                totalWeightedSgpa += s.getSgpa() * s.getTotalCredits();
-                totalCredits += s.getTotalCredits();
+            if (!s.getSubjects().isEmpty() && s.getTotalCredits() > 0) {
+                boolean hasGradedSubjects = s.getSubjects().stream().anyMatch(sub -> !sub.getGradeItems().isEmpty());
+                if (hasGradedSubjects) {
+                    totalWeightedSgpa += s.getSgpa() * s.getTotalCredits();
+                    totalCredits += s.getTotalCredits();
+                }
             }
         }
 
