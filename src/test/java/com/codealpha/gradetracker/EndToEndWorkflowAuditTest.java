@@ -304,12 +304,47 @@ public class EndToEndWorkflowAuditTest {
         assertCondition(saved, "DataManager save must return true");
 
         DataManager dm2 = new DataManager();
-        dm2.loadData();
-        Student reloaded = dm2.getStudentById("S2009");
+        boolean loadedOk = dm2.loadData();
+        assertCondition(loadedOk, "DataManager load of valid file must return true");
+        assertCondition(!dm2.hasLoadFailed(), "Valid load must set loadFailed to false");
 
+        Student reloaded = dm2.getStudentById("S2009");
         assertCondition(reloaded != null, "Reloaded student S2009 must not be null");
         assertCondition("Julia Roberts".equals(reloaded.getName()), "Reloaded student name match");
         assertCondition(reloaded.getSemester(2).getSubjects().size() == 1, "Reloaded semester subjects count match");
+
+        // Verify null payload / load failure save protection using DataManager(testFilePath)
+        File corruptTestFile = File.createTempFile("test_null_payload", ".dat");
+        try {
+            try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(new java.io.FileOutputStream(corruptTestFile))) {
+                oos.writeObject(null);
+            }
+
+            long initialFileSize = corruptTestFile.length();
+            assertCondition(initialFileSize > 0, "Corrupt test file must be non-empty after writing serialized null");
+
+            DataManager dmCorrupt = new DataManager(corruptTestFile.getAbsolutePath());
+            assertCondition(!dmCorrupt.hasLoadFailed(), "Initially hasLoadFailed() must be false");
+
+            // Assert that loading the null payload returns false
+            boolean loadResult = dmCorrupt.loadData();
+            assertCondition(!loadResult, "Loading null payload via DataManager.loadData() must return false");
+
+            // Assert that hasLoadFailed() returns true
+            assertCondition(dmCorrupt.hasLoadFailed(), "hasLoadFailed() must return true after loading null payload");
+            assertCondition(dmCorrupt.getStudents().isEmpty(), "Student list must be empty after load failure");
+
+            // Assert that a subsequent saveData() returns false and does not overwrite the persisted data
+            boolean saveResult = dmCorrupt.saveData();
+            assertCondition(!saveResult, "saveData() must return false when loadFailed is true");
+            assertCondition(corruptTestFile.length() == initialFileSize, "saveData() must not overwrite test file after load failure");
+        } finally {
+            File backupFile = new File(corruptTestFile.getAbsolutePath() + ".bak");
+            if (backupFile.exists()) {
+                backupFile.delete();
+            }
+            corruptTestFile.delete();
+        }
     }
 
     // --- 14. System Edge Cases ---

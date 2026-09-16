@@ -19,11 +19,26 @@ import java.util.List;
  */
 public class DataManager {
 
-    private static final String DATA_FILE = "student_grades.dat";
+    public static final String DEFAULT_DATA_FILE = "student_grades.dat";
+    private final String dataFilePath;
     private final List<Student> students;
+    private boolean loadFailed = false;
 
     public DataManager() {
+        this(DEFAULT_DATA_FILE);
+    }
+
+    public DataManager(String dataFilePath) {
+        this.dataFilePath = (dataFilePath != null && !dataFilePath.trim().isEmpty()) ? dataFilePath : DEFAULT_DATA_FILE;
         this.students = new ArrayList<>();
+    }
+
+    public String getDataFilePath() {
+        return dataFilePath;
+    }
+
+    public boolean hasLoadFailed() {
+        return loadFailed;
     }
 
     public List<Student> getStudents() {
@@ -53,6 +68,7 @@ public class DataManager {
      * Pre-populates sample B.Tech CSE (Computer Science & Engineering) dataset across Semesters 1 - 4.
      */
     public void loadSampleData() {
+        loadFailed = false;
         students.clear();
 
         // --- Student 1: Alice Johnson (CSE, Sem 4, Top Performer) ---
@@ -142,7 +158,11 @@ public class DataManager {
     }
 
     public boolean saveData() {
-        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(DATA_FILE))) {
+        if (loadFailed) {
+            System.err.println("Error saving data: Load failed previously. Overwrite aborted to prevent data loss.");
+            return false;
+        }
+        try (ObjectOutputStream oos = new ObjectOutputStream(new FileOutputStream(dataFilePath))) {
             oos.writeObject(students);
             return true;
         } catch (Exception e) {
@@ -153,21 +173,25 @@ public class DataManager {
 
     @SuppressWarnings("unchecked")
     public boolean loadData() {
-        File file = new File(DATA_FILE);
+        File file = new File(dataFilePath);
         if (!file.exists()) {
+            loadFailed = false;
             loadSampleData();
             return false;
         }
 
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
             List<Student> loaded = (List<Student>) ois.readObject();
-            students.clear();
-            if (loaded != null) {
-                students.addAll(loaded);
+            if (loaded == null) {
+                throw new java.io.IOException("Deserialized student data payload is null");
             }
+            students.clear();
+            students.addAll(loaded);
+            loadFailed = false;
             return true;
         } catch (Exception e) {
             System.err.println("Error loading data file: " + e.getMessage());
+            loadFailed = true;
             createBackupCopy(file);
             students.clear();
             return false;
