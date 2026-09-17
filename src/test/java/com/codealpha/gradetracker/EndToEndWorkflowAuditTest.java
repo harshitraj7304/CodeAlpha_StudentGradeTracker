@@ -205,6 +205,25 @@ public class EndToEndWorkflowAuditTest {
 
         double cgpaWithZeroSgpa = s.getCgpa();
         assertCondition(Math.abs(cgpaWithZeroSgpa - 6.0) < 0.01, "CGPA with Zero-SGPA semester should be 6.0, got: " + cgpaWithZeroSgpa);
+
+        // Sem 4: Partially entered semester (4 credits graded with 10.0 GP, 4 credits registered but ungraded)
+        Course c4a = new Course("CS401", "Algorithms", 4);
+        c4a.addGradeItem(new GradeItem("Final", 95, 100, AssessmentCategory.FINAL_EXAM, 1.0)); // 10.0 GP
+        s.getSemester(4).addSubject(c4a);
+
+        Course c4b = new Course("CS402", "Operating Systems", 4); // Registered but no grade items yet
+        s.getSemester(4).addSubject(c4b);
+
+        assertCondition(s.getSemester(4).getTotalCredits() == 8, "Sem 4 registered credits must be 8");
+        assertCondition(s.getSemester(4).getGradedCredits() == 4, "Sem 4 graded credits must be 4");
+        assertCondition(Math.abs(s.getSemester(4).getSgpa() - 10.0) < 0.01, "Sem 4 SGPA must be 10.0 based on graded subjects");
+
+        // Denominator must only count graded credits (4 + 4 + 4 + 4 = 16 credits), not registered credits (20)
+        // Correct CGPA = (10*4 + 8*4 + 0*4 + 10*4) / 16 = 112 / 16 = 7.00
+        // Erroneous registered-credit weight would produce: (72 + 10*8) / 20 = 152 / 20 = 7.60
+        double cgpaPartialSem = s.getCgpa();
+        assertCondition(Math.abs(cgpaPartialSem - 7.0) < 0.01,
+            "CGPA with partial semester should not weight un-assessed credits (expected 7.0, got: " + cgpaPartialSem + ")");
     }
 
     // --- 8. Backlog Lifecycle & Remediation ---
