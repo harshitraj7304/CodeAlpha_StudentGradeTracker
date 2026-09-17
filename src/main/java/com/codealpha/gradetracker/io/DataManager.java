@@ -171,7 +171,6 @@ public class DataManager {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public boolean loadData() {
         File file = new File(dataFilePath);
         if (!file.exists()) {
@@ -181,12 +180,27 @@ public class DataManager {
         }
 
         try (ObjectInputStream ois = new ObjectInputStream(new FileInputStream(file))) {
-            List<Student> loaded = (List<Student>) ois.readObject();
-            if (loaded == null) {
+            Object obj = ois.readObject();
+            if (obj == null) {
                 throw new java.io.IOException("Deserialized student data payload is null");
             }
+            if (!(obj instanceof List<?>)) {
+                throw new java.io.IOException("Deserialized payload is not a List: " + obj.getClass().getName());
+            }
+            List<?> rawList = (List<?>) obj;
+            List<Student> validatedStudents = new ArrayList<>(rawList.size());
+            for (int i = 0; i < rawList.size(); i++) {
+                Object element = rawList.get(i);
+                if (element == null) {
+                    throw new java.io.IOException("Deserialized student list contains null element at index " + i);
+                }
+                if (!(element instanceof Student)) {
+                    throw new java.io.IOException("Deserialized student list contains invalid element type at index " + i + ": " + element.getClass().getName());
+                }
+                validatedStudents.add((Student) element);
+            }
             students.clear();
-            students.addAll(loaded);
+            students.addAll(validatedStudents);
             loadFailed = false;
             return true;
         } catch (Exception e) {
