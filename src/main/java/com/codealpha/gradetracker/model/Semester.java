@@ -96,6 +96,19 @@ public class Semester implements Serializable {
     }
 
     /**
+     * Total graded credits in this semester (credits for subjects with entered grades).
+     */
+    public int getGradedCredits() {
+        int graded = 0;
+        for (Course c : subjects) {
+            if (!c.getGradeItems().isEmpty()) {
+                graded += c.getCredits();
+            }
+        }
+        return graded;
+    }
+
+    /**
      * Computes the Semester Grade Point Average (SGPA) on a 10.0 scale.
      * SGPA = Sum(Subject Grade Point * Credits) / Sum(Semester Credits)
      */

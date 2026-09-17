@@ -197,6 +197,33 @@ public class EndToEndWorkflowAuditTest {
         assertCondition(Math.abs(sgpa1 - 10.0) < 0.01, "Sem 1 SGPA should be 10.0, got: " + sgpa1);
         assertCondition(Math.abs(sgpa2 - 8.0) < 0.01, "Sem 2 SGPA should be 8.0, got: " + sgpa2);
         assertCondition(Math.abs(cgpa - 9.0) < 0.01, "Cumulative CGPA should be 9.0, got: " + cgpa);
+
+        // Sem 3: 4 credits of 0.0 SGPA (failed subject with entered grade)
+        Course c3 = new Course("CS301", "Physics", 4);
+        c3.addGradeItem(new GradeItem("Final", 20, 100, AssessmentCategory.FINAL_EXAM, 1.0)); // 20% -> F (0.0 GP)
+        s.getSemester(3).addSubject(c3);
+
+        double cgpaWithZeroSgpa = s.getCgpa();
+        assertCondition(Math.abs(cgpaWithZeroSgpa - 6.0) < 0.01, "CGPA with Zero-SGPA semester should be 6.0, got: " + cgpaWithZeroSgpa);
+
+        // Sem 4: Partially entered semester (4 credits graded with 10.0 GP, 4 credits registered but ungraded)
+        Course c4a = new Course("CS401", "Algorithms", 4);
+        c4a.addGradeItem(new GradeItem("Final", 95, 100, AssessmentCategory.FINAL_EXAM, 1.0)); // 10.0 GP
+        s.getSemester(4).addSubject(c4a);
+
+        Course c4b = new Course("CS402", "Operating Systems", 4); // Registered but no grade items yet
+        s.getSemester(4).addSubject(c4b);
+
+        assertCondition(s.getSemester(4).getTotalCredits() == 8, "Sem 4 registered credits must be 8");
+        assertCondition(s.getSemester(4).getGradedCredits() == 4, "Sem 4 graded credits must be 4");
+        assertCondition(Math.abs(s.getSemester(4).getSgpa() - 10.0) < 0.01, "Sem 4 SGPA must be 10.0 based on graded subjects");
+
+        // Denominator must only count graded credits (4 + 4 + 4 + 4 = 16 credits), not registered credits (20)
+        // Correct CGPA = (10*4 + 8*4 + 0*4 + 10*4) / 16 = 112 / 16 = 7.00
+        // Erroneous registered-credit weight would produce: (72 + 10*8) / 20 = 152 / 20 = 7.60
+        double cgpaPartialSem = s.getCgpa();
+        assertCondition(Math.abs(cgpaPartialSem - 7.0) < 0.01,
+            "CGPA with partial semester should not weight un-assessed credits (expected 7.0, got: " + cgpaPartialSem + ")");
     }
 
     // --- 8. Backlog Lifecycle & Remediation ---
@@ -296,12 +323,84 @@ public class EndToEndWorkflowAuditTest {
         assertCondition(saved, "DataManager save must return true");
 
         DataManager dm2 = new DataManager();
-        dm2.loadData();
-        Student reloaded = dm2.getStudentById("S2009");
+        boolean loadedOk = dm2.loadData();
+        assertCondition(loadedOk, "DataManager load of valid file must return true");
+        assertCondition(!dm2.hasLoadFailed(), "Valid load must set loadFailed to false");
 
+        Student reloaded = dm2.getStudentById("S2009");
         assertCondition(reloaded != null, "Reloaded student S2009 must not be null");
         assertCondition("Julia Roberts".equals(reloaded.getName()), "Reloaded student name match");
         assertCondition(reloaded.getSemester(2).getSubjects().size() == 1, "Reloaded semester subjects count match");
+
+        // Verify null payload / load failure save protection using DataManager(testFilePath)
+        File corruptTestFile = File.createTempFile("test_null_payload", ".dat");
+        try {
+            try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(new java.io.FileOutputStream(corruptTestFile))) {
+                oos.writeObject(null);
+            }
+
+            long initialFileSize = corruptTestFile.length();
+            assertCondition(initialFileSize > 0, "Corrupt test file must be non-empty after writing serialized null");
+
+            DataManager dmCorrupt = new DataManager(corruptTestFile.getAbsolutePath());
+            assertCondition(!dmCorrupt.hasLoadFailed(), "Initially hasLoadFailed() must be false");
+
+            // Assert that loading the null payload returns false
+            boolean loadResult = dmCorrupt.loadData();
+            assertCondition(!loadResult, "Loading null payload via DataManager.loadData() must return false");
+
+            // Assert that hasLoadFailed() returns true
+            assertCondition(dmCorrupt.hasLoadFailed(), "hasLoadFailed() must return true after loading null payload");
+            assertCondition(dmCorrupt.getStudents().isEmpty(), "Student list must be empty after load failure");
+
+            // Assert that a subsequent saveData() returns false and does not overwrite the persisted data
+            boolean saveResult = dmCorrupt.saveData();
+            assertCondition(!saveResult, "saveData() must return false when loadFailed is true");
+            assertCondition(corruptTestFile.length() == initialFileSize, "saveData() must not overwrite test file after load failure");
+        } finally {
+            File backupFile = new File(corruptTestFile.getAbsolutePath() + ".bak");
+            if (backupFile.exists()) {
+                backupFile.delete();
+            }
+            corruptTestFile.delete();
+        }
+
+        // Verify invalid List payload (e.g. List containing a String element) rejection and save protection
+        File invalidListFile = File.createTempFile("test_invalid_list_payload", ".dat");
+        try {
+            ArrayList<Object> invalidPayload = new ArrayList<>();
+            invalidPayload.add("NotAStudentInstance");
+            try (java.io.ObjectOutputStream oos = new java.io.ObjectOutputStream(new java.io.FileOutputStream(invalidListFile))) {
+                oos.writeObject(invalidPayload);
+            }
+
+            long initialFileSize = invalidListFile.length();
+            assertCondition(initialFileSize > 0, "Invalid payload test file must be non-empty");
+
+            DataManager dmInvalid = new DataManager(invalidListFile.getAbsolutePath());
+            assertCondition(!dmInvalid.hasLoadFailed(), "Initially hasLoadFailed() must be false");
+
+            // Assert that loading the invalid list payload returns false
+            boolean loadResult = dmInvalid.loadData();
+            assertCondition(!loadResult, "Loading invalid list payload via DataManager.loadData() must return false");
+
+            // Assert that hasLoadFailed() returns true
+            assertCondition(dmInvalid.hasLoadFailed(), "hasLoadFailed() must return true after loading invalid list payload");
+
+            // Assert that students remain empty
+            assertCondition(dmInvalid.getStudents().isEmpty(), "Student list must be empty after invalid list load failure");
+
+            // Assert that a subsequent saveData() returns false and does not overwrite persisted data
+            boolean saveResult = dmInvalid.saveData();
+            assertCondition(!saveResult, "saveData() must return false after invalid list load failure");
+            assertCondition(invalidListFile.length() == initialFileSize, "saveData() must not overwrite test file after invalid list load failure");
+        } finally {
+            File backupFile = new File(invalidListFile.getAbsolutePath() + ".bak");
+            if (backupFile.exists()) {
+                backupFile.delete();
+            }
+            invalidListFile.delete();
+        }
     }
 
     // --- 14. System Edge Cases ---

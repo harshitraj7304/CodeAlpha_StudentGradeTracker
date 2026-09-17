@@ -160,16 +160,29 @@ public class Student implements Serializable {
     }
 
     /**
+     * Total Graded Credits across all semesters.
+     */
+    public int getGradedCredits() {
+        int graded = 0;
+        for (Semester s : semesters.values()) {
+            graded += s.getGradedCredits();
+        }
+        return graded;
+    }
+
+    /**
      * Calculates Cumulative Grade Point Average (CGPA) on a 10.0 scale across all active semesters.
+     * Semesters are weighted by graded credits only to avoid distorting partial semesters.
      */
     public double getCgpa() {
         double totalWeightedSgpa = 0.0;
         int totalCredits = 0;
 
         for (Semester s : semesters.values()) {
-            if (!s.getSubjects().isEmpty() && s.getSgpa() > 0) {
-                totalWeightedSgpa += s.getSgpa() * s.getTotalCredits();
-                totalCredits += s.getTotalCredits();
+            int gradedCredits = s.getGradedCredits();
+            if (gradedCredits > 0) {
+                totalWeightedSgpa += s.getSgpa() * gradedCredits;
+                totalCredits += gradedCredits;
             }
         }
 
